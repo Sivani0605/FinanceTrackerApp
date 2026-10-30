@@ -6,10 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useFinance } from '@/context/FinanceContext';
 import ScreenHeader from '@/components/ScreenHeader';
 import AuthGate from '@/components/AuthGate';
+import { exportAuditReportPdf, exportCustomerReportPdf } from '@/utils/pdfGenerator';
 
 export default function AnalysisScreen() {
   const {
@@ -60,15 +62,64 @@ export default function AnalysisScreen() {
     percentUtilized: 0,
   };
 
-  const handleExportAdminReport = () => {
-    Alert.alert(
-      'Audit Report Exported',
-      `Audit Report generated for Admin ${user?.name || 'Administrator'}.\n\n` +
-        `• Period: ${selectedMonth}\n` +
-        `• Total Monitored Accounts: 1,420\n` +
-        `• Total System Turnover: ₹12,45,000\n` +
-        `• Compliance Status: 100% Verified (Financial Audit Standards)`
-    );
+  const [isGeneratingAuditPdf, setIsGeneratingAuditPdf] = useState(false);
+  const [isGeneratingPeriodPdf, setIsGeneratingPeriodPdf] = useState(false);
+
+  const handleExportAdminReport = async () => {
+    setIsGeneratingAuditPdf(true);
+    try {
+      const res = await exportAuditReportPdf({
+        adminName: user?.name || 'Administrator',
+        adminEmail: user?.email || 'admin@gmail.com',
+        selectedMonth,
+        financialSummary,
+        categories,
+        transactions: monthTransactions,
+        reportData,
+      });
+
+      if (res && res.success) {
+        Alert.alert(
+          'Audit Report Ready',
+          `The official Financial Audit Report PDF for ${selectedMonth} has been generated.\n\nYou can now download, print, or share the document.`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Export Failed', 'An error occurred while generating the audit report PDF.');
+    } finally {
+      setIsGeneratingAuditPdf(false);
+    }
+  };
+
+  const handleExportPeriodReport = async () => {
+    setIsGeneratingPeriodPdf(true);
+    try {
+      const res = await exportCustomerReportPdf({
+        userName: user?.name || 'Customer',
+        userEmail: user?.email || 'customer@gmail.com',
+        period: reportPeriod,
+        selectedMonth,
+        financialSummary,
+        categories,
+        transactions: monthTransactions,
+        reportData,
+      });
+
+      if (res && res.success) {
+        Alert.alert(
+          'Report Ready',
+          `Your ${reportPeriod} Financial Statement PDF for ${selectedMonth} has been generated successfully!`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Export Failed', 'An error occurred while generating the report PDF.');
+    } finally {
+      setIsGeneratingPeriodPdf(false);
+    }
   };
 
   return (
@@ -266,6 +317,25 @@ export default function AnalysisScreen() {
               </View>
             </View>
           )}
+
+          {/* Download Period Report as PDF */}
+          <TouchableOpacity
+            style={styles.downloadPeriodBtn}
+            onPress={handleExportPeriodReport}
+            disabled={isGeneratingPeriodPdf}
+            activeOpacity={0.8}
+          >
+            {isGeneratingPeriodPdf ? (
+              <ActivityIndicator size="small" color="#2563EB" />
+            ) : (
+              <>
+                <Text style={styles.downloadPeriodBtnIcon}>📄</Text>
+                <Text style={styles.downloadPeriodBtnText}>
+                  Download {reportPeriod} Statement (PDF)
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Hero Spending Analysis Card */}
@@ -317,10 +387,19 @@ export default function AnalysisScreen() {
                 </Text>
               </View>
               <TouchableOpacity
-                style={styles.exportBtn}
+                style={[styles.exportBtn, isGeneratingAuditPdf && { opacity: 0.8 }]}
                 onPress={handleExportAdminReport}
+                disabled={isGeneratingAuditPdf}
+                activeOpacity={0.8}
               >
-                <Text style={styles.exportBtnText}>Export Audit</Text>
+                {isGeneratingAuditPdf ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Text style={styles.exportBtnIcon}>📥</Text>
+                    <Text style={styles.exportBtnText}>Download Audit PDF</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -601,15 +680,44 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   exportBtn: {
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#60A5FA',
+  },
+  exportBtnIcon: {
+    fontSize: 13,
   },
   exportBtnText: {
-    color: '#000000',
-    fontSize: 11,
+    color: '#FFFFFF',
+    fontSize: 12,
     fontWeight: 'bold',
+  },
+  downloadPeriodBtn: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  downloadPeriodBtnIcon: {
+    fontSize: 14,
+  },
+  downloadPeriodBtnText: {
+    color: '#2563EB',
+    fontSize: 13,
+    fontWeight: '700',
   },
   adminMetricsRow: {
     flexDirection: 'row',
